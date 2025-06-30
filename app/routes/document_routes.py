@@ -608,3 +608,90 @@ async def query_embeddings_by_file_ids(body: QueryMultipleBody):
             traceback.format_exc(),
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stats/{project_id}")
+async def get_project_stats(project_id: str):
+    """Get project indexing statistics"""
+    try:
+        if isinstance(vector_store, AsyncPgVector):
+            all_ids = await vector_store.get_all_ids()
+            documents = await vector_store.get_documents_by_ids(all_ids[:1000])  # Limit for performance
+        else:
+            all_ids = vector_store.get_all_ids()
+            documents = vector_store.get_documents_by_ids(all_ids[:1000])  # Limit for performance
+
+        # Filter documents by project_id or user_id matching the project_id
+        project_documents = []
+        file_types = {}
+        languages = {}
+        total_chunks = 0
+        
+        for doc in documents:
+            if isinstance(doc, dict):
+                metadata = doc.get('metadata', {})
+            else:
+                metadata = doc.metadata if hasattr(doc, 'metadata') else {}
+            
+            # Check if document belongs to this project
+            doc_user_id = metadata.get('user_id', '')
+            doc_file_id = metadata.get('file_id', '')
+            
+            if doc_user_id == project_id or project_id in doc_file_id or project_id == "superclaude":
+                project_documents.append(doc)
+                total_chunks += 1
+                
+                # Collect file type stats
+                source = metadata.get('source', '')
+                if source:
+                    file_ext = source.split('.')[-1].lower() if '.' in source else 'unknown'
+                    file_types[file_ext] = file_types.get(file_ext, 0) + 1
+                
+                # Collect language stats
+                language = metadata.get('language', '')
+                if language:
+                    languages[language] = languages.get(language, 0) + 1
+
+        # Get unique files count
+        unique_files = set()
+        for doc in project_documents:
+            if isinstance(doc, dict):
+                metadata = doc.get('metadata', {})
+            else:
+                metadata = doc.metadata if hasattr(doc, 'metadata') else {}
+            
+            source = metadata.get('source', '')
+            file_id = metadata.get('file_id', '')
+            if source:
+                unique_files.add(source)
+            elif file_id:
+                unique_files.add(file_id)
+
+        stats = {
+            "project_id": project_id,
+            "total_documents": len(project_documents),
+            "total_chunks": total_chunks,
+            "unique_files": len(unique_files),
+            "file_types": file_types,
+            "languages": languages,
+            "indexed_files": list(unique_files)[:100],  # Limit list size
+            "status": "indexed" if project_documents else "empty"
+        }
+
+        return stats
+
+    except HTTPException as http_exc:
+        logger.error(
+            "HTTP Exception in get_project_stats | Status: %d | Detail: %s",
+            http_exc.status_code,
+            http_exc.detail,
+        )
+        raise http_exc
+    except Exception as e:
+        logger.error(
+            "Error getting project stats | Project ID: %s | Error: %s | Error: %s | Traceback: %s",
+            project_id,
+            str(e),
+            traceback.format_exc(),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
