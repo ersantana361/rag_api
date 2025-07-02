@@ -2,17 +2,15 @@ FROM python:3.10 AS main
 
 WORKDIR /app
 
-# Install pandoc and netcat with retry logic for network issues
-RUN for i in {1..3}; do \
-        apt-get update && \
-        apt-get install -y --no-install-recommends \
-            pandoc \
-            netcat-openbsd \
-            libgl1-mesa-glx \
-            libglib2.0-0 && \
-        rm -rf /var/lib/apt/lists/* && \
-        break || sleep 5; \
-    done
+# Install system packages (with host network, DNS should work)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    pandoc \
+    netcat-openbsd \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
