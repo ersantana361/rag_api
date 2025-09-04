@@ -1,158 +1,243 @@
-﻿# ID-based RAG FastAPI
+# RAG API with Weaviate + Elysia
 
 ## Overview
-This project integrates Langchain with FastAPI in an Asynchronous, Scalable manner, providing a framework for document indexing and retrieval, using PostgreSQL/pgvector.
+This project provides an **intelligent document indexing and retrieval API** powered by **Weaviate** (cloud-native vector database) and **Elysia** (agentic AI framework). It offers both traditional semantic search and advanced agentic querying with decision trees.
 
-Files are organized into embeddings by `file_id`. The primary use case is for integration with [LibreChat](https://librechat.ai), but this simple API can be used for any ID-based use case.
+Files are organized into embeddings by `file_id`, making it perfect for integration with [LibreChat](https://librechat.ai) and other applications requiring document-level retrieval. The API employs modern AI agent capabilities for intelligent document interaction.
 
-The main reason to use the ID approach is to work with embeddings on a file-level. This makes for targeted queries when combined with file metadata stored in a database, such as is done by LibreChat.
+**💡 Complete Solution**: Combine this API with the [Elysia Frontend](https://github.com/weaviate/elysia-frontend) for a full-stack document intelligence platform with web interface, chat capabilities, and 3D visualizations.
 
-The API will evolve over time to employ different querying/re-ranking methods, embedding models, and vector stores.
+## ✨ Key Features
 
-## Features
-- **Document Management**: Methods for adding, retrieving, and deleting documents.
-- **Vector Store**: Utilizes Langchain's vector store for efficient document retrieval.
-- **Asynchronous Support**: Offers async operations for enhanced performance.
+- **🤖 Agentic Querying**: AI agents with decision trees for intelligent document retrieval
+- **☁️ Cloud-Native**: Weaviate vector database with automatic scaling
+- **🔍 Dual Search Modes**: Traditional semantic search + agentic reasoning
+- **🐳 Docker Ready**: Complete local development environment included
+- **📄 Document Management**: Add, retrieve, and delete documents with metadata
+- **🚀 Async Performance**: Built with FastAPI for high-performance operations
+- **🔌 Flexible Deployment**: Local development or cloud production ready
 
-## Setup
+## 🚀 Quick Start
 
-### Getting Started
-
-- **Configure `.env` file based on [section below](#environment-variables)**
-- **Setup pgvector database:**
-  - Run an existing PSQL/PGVector setup, or,
-  - Docker: `docker compose up` (also starts RAG API)
-    - or, use docker just for DB: `docker compose -f ./db-compose.yaml up`
-- **Run API**:
-  - Docker: `docker compose up` (also starts PSQL/pgvector)
-    - or, use docker just for RAG API: `docker compose -f ./api-compose.yaml up`
-  - Local:
-    - Make sure to setup `DB_HOST` to the correct database hostname
-    - Run the following commands (preferably in a [virtual environment](https://realpython.com/python-virtual-environments-a-primer/))
+### Option 1: Docker (Recommended)
 ```bash
+# 1. Setup environment
+cp .env.dev .env
+# Edit .env and add your OpenAI API key
+
+# 2. Start services (includes local Weaviate database)
+docker compose up --build
+
+# 3. Access the API
+# - API: http://localhost:8000
+# - Documentation: http://localhost:8000/docs  
+# - Weaviate: http://localhost:8080
+```
+
+### Option 2: Python Development
+```bash
+# 1. Install dependencies
 pip install -r requirements.txt
-uvicorn main:app
+
+# 2. Setup environment for local Weaviate
+cp .env.dev .env
+# Edit .env with your API credentials
+
+# 3. Start local Weaviate
+docker run -p 8080:8080 -e AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true \
+  cr.weaviate.io/semitechnologies/weaviate:1.32.5
+
+# 4. Run the API
+python main.py
 ```
 
-### Environment Variables
+## 🎯 API Endpoints
 
-The following environment variables are required to run the application:
+### Document Management
+- `POST /upload` - Upload and process documents
+- `GET /ids` - Get all document IDs
+- `GET /count` - Get total document count  
+- `DELETE /documents/{file_id}` - Delete documents by file ID
+- `POST /store` - Store pre-uploaded documents
 
-- `RAG_OPENAI_API_KEY`: The API key for OpenAI API Embeddings (if using default settings).
-    - Note: `OPENAI_API_KEY` will work but `RAG_OPENAI_API_KEY` will override it in order to not conflict with LibreChat setting.
-- `RAG_OPENAI_BASEURL`: (Optional) The base URL for your OpenAI API Embeddings
-- `RAG_OPENAI_PROXY`: (Optional) Proxy for OpenAI API Embeddings
-- `VECTOR_DB_TYPE`: (Optional) select vector database type, default to `pgvector`.
-- `POSTGRES_DB`: (Optional) The name of the PostgreSQL database, used when `VECTOR_DB_TYPE=pgvector`.
-- `POSTGRES_USER`: (Optional) The username for connecting to the PostgreSQL database.
-- `POSTGRES_PASSWORD`: (Optional) The password for connecting to the PostgreSQL database.
-- `DB_HOST`: (Optional) The hostname or IP address of the PostgreSQL database server.
-- `DB_PORT`: (Optional) The port number of the PostgreSQL database server.
-- `RAG_HOST`: (Optional) The hostname or IP address where the API server will run. Defaults to "0.0.0.0"
-- `RAG_PORT`: (Optional) The port number where the API server will run. Defaults to port 8000.
-- `JWT_SECRET`: (Optional) The secret key used for verifying JWT tokens for requests.
-  - The secret is only used for verification. This basic approach assumes a signed JWT from elsewhere.
-  - Omit to run API without requiring authentication
+### Querying
+- `POST /query` - **Traditional semantic search**
+  ```json
+  {"query": "What is machine learning?"}
+  ```
 
-- `COLLECTION_NAME`: (Optional) The name of the collection in the vector store. Default value is "testcollection".
-- `CHUNK_SIZE`: (Optional) The size of the chunks for text processing. Default value is "1500".
-- `CHUNK_OVERLAP`: (Optional) The overlap between chunks during text processing. Default value is "100".
-- `RAG_UPLOAD_DIR`: (Optional) The directory where uploaded files are stored. Default value is "./uploads/".
-- `PDF_EXTRACT_IMAGES`: (Optional) A boolean value indicating whether to extract images from PDF files. Default value is "False".
-- `DEBUG_RAG_API`: (Optional) Set to "True" to show more verbose logging output in the server console, and to enable postgresql database routes
-- `CONSOLE_JSON`: (Optional) Set to "True" to log as json for Cloud Logging aggregations
-- `EMBEDDINGS_PROVIDER`: (Optional) either "openai", "bedrock", "azure", "huggingface", "huggingfacetei", "vertexai", or "ollama", where "huggingface" uses sentence_transformers; defaults to "openai"
-- `EMBEDDINGS_MODEL`: (Optional) Set a valid embeddings model to use from the configured provider.
-    - **Defaults**
-    - openai: "text-embedding-3-small"
-    - azure: "text-embedding-3-small" (will be used as your Azure Deployment)
-    - huggingface: "sentence-transformers/all-MiniLM-L6-v2"
-    - huggingfacetei: "http://huggingfacetei:3000". Hugging Face TEI uses model defined on TEI service launch.
-    - vertexai: "text-embedding-004"
-    - ollama: "nomic-embed-text"
-    - bedrock: "amazon.titan-embed-text-v1"
-- `RAG_AZURE_OPENAI_API_VERSION`: (Optional) Default is `2023-05-15`. The version of the Azure OpenAI API.
-- `RAG_AZURE_OPENAI_API_KEY`: (Optional) The API key for Azure OpenAI service.
-    - Note: `AZURE_OPENAI_API_KEY` will work but `RAG_AZURE_OPENAI_API_KEY` will override it in order to not conflict with LibreChat setting.
-- `RAG_AZURE_OPENAI_ENDPOINT`: (Optional) The endpoint URL for Azure OpenAI service, including the resource.
-    - Example: `https://YOUR_RESOURCE_NAME.openai.azure.com`.
-    - Note: `AZURE_OPENAI_ENDPOINT` will work but `RAG_AZURE_OPENAI_ENDPOINT` will override it in order to not conflict with LibreChat setting.
-- `HF_TOKEN`: (Optional) if needed for `huggingface` option.
-- `OLLAMA_BASE_URL`: (Optional) defaults to `http://ollama:11434`.
-- `ATLAS_SEARCH_INDEX`: (Optional) the name of the vector search index if using Atlas MongoDB, defaults to `vector_index`
-- `MONGO_VECTOR_COLLECTION`: Deprecated for MongoDB, please use `ATLAS_SEARCH_INDEX` and `COLLECTION_NAME`
-- `AWS_DEFAULT_REGION`: (Optional) defaults to `us-east-1`
-- `AWS_ACCESS_KEY_ID`: (Optional) needed for bedrock embeddings
-- `AWS_SECRET_ACCESS_KEY`: (Optional) needed for bedrock embeddings
-- `GOOGLE_APPLICATION_CREDENTIALS`: (Optional) needed for Google VertexAI embeddings
+- `POST /query/agentic` - **🤖 NEW: Agentic query with AI reasoning**
+  ```json
+  {
+    "query": "Analyze the main themes in these documents and provide insights",
+    "collection_names": ["Documents"]
+  }
+  ```
 
-Make sure to set these environment variables before running the application. You can set them in a `.env` file or as system environment variables.
+### System
+- `GET /health` - Health check
+- `GET /stats/{project_id}` - Project statistics
 
-### Use Atlas MongoDB as Vector Database
+## 📊 Agentic Capabilities
 
-Instead of using the default pgvector, we could use [Atlas MongoDB](https://www.mongodb.com/products/platform/atlas-vector-search) as the vector database. To do so, set the following environment variables
+The `/query/agentic` endpoint uses **Elysia's decision tree system** to:
 
-```env
-VECTOR_DB_TYPE=atlas-mongo
-ATLAS_MONGO_DB_URI=<mongodb+srv://...>
-COLLECTION_NAME=<vector collection>
-ATLAS_SEARCH_INDEX=<vector search index>
-```
+- 🧠 **Intelligently select tools** for document retrieval
+- 🔄 **Reason about queries** using AI agent decision trees  
+- 📈 **Provide explanations** for search strategies used
+- 🎯 **Optimize results** based on document context and user intent
 
-The `ATLAS_MONGO_DB_URI` could be the same or different from what is used by LibreChat. Even if it is the same, the `$COLLECTION_NAME` collection needs to be a completely new one, separate from all collections used by LibreChat. In addition,  create a vector search index for collection above (remember to assign `$ATLAS_SEARCH_INDEX`) with the following json:
-
+Example response:
 ```json
 {
-  "fields": [
-    {
-      "numDimensions": 1536,
-      "path": "embedding",
-      "similarity": "cosine",
-      "type": "vector"
-    },
-    {
-      "path": "file_id",
-      "type": "filter"
-    }
-  ]
+  "response": "Based on the analysis of your documents, the main themes are...",
+  "objects": [...],
+  "agent_reasoning": "Query processed through Elysia decision tree"
 }
 ```
 
-Follow one of the [four documented methods](https://www.mongodb.com/docs/atlas/atlas-vector-search/create-index/#procedure) to create the vector index.
+## ⚙️ Environment Variables
 
+### Required Configuration
+```env
+# Weaviate Database
+WCD_URL=http://localhost:8080          # Local development
+WCD_API_KEY=                           # Empty for local dev
+WEAVIATE_COLLECTION_NAME=Documents
 
-### Cloud Installation Settings:
+# OpenAI for Embeddings (Required)
+OPENAI_API_KEY=your-openai-api-key
+EMBEDDINGS_PROVIDER=openai
+EMBEDDINGS_MODEL=text-embedding-3-small
 
-#### AWS:
-Make sure your RDS Postgres instance adheres to this requirement:
+# API Configuration
+RAG_HOST=0.0.0.0
+RAG_PORT=8000
+RAG_UPLOAD_DIR=./uploads/
+```
 
-`The pgvector extension version 0.5.0 is available on database instances in Amazon RDS running PostgreSQL 15.4-R2 and higher, 14.9-R2 and higher, 13.12-R2 and higher, and 12.16-R2 and higher in all applicable AWS Regions, including the AWS GovCloud (US) Regions.`
+### Optional Configuration
+```env
+# Elysia Agentic Framework
+OPENROUTER_API_KEY=your-openrouter-api-key
 
-In order to setup RDS Postgres with RAG API, you can follow these steps:
+# Document Processing
+CHUNK_SIZE=1500
+CHUNK_OVERLAP=100
+PDF_EXTRACT_IMAGES=False
 
-* Create a RDS Instance/Cluster using the provided [AWS Documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_CreateDBInstance.html).
-* Login to the RDS Cluster using the Endpoint connection string from the RDS Console or from your IaC Solution output.
-* The login is via the *Master User*.
-* Create a dedicated database for rag_api:
-``` create database rag_api;```.
-* Create a dedicated user\role for that database:
-``` create role rag;```
+# Alternative Embedding Providers
+EMBEDDINGS_PROVIDER=azure|huggingface|ollama|bedrock|vertexai
+# Provider-specific API keys...
 
-* Switch to the database you just created: ```\c rag_api```
-* Enable the Vector extension: ```create extension vector;```
-* Use the documentation provided above to set up the connection string to the RDS Postgres Instance\Cluster.
+# Logging
+DEBUG_RAG_API=False
+CONSOLE_JSON=False
+```
 
-Notes:
-  * Even though you're logging with a Master user, it doesn't have all the super user privileges, that's why we cannot use the command: ```create role x with superuser;```
-  * If you do not enable the extension, rag_api service will throw an error that it cannot create the extension due to the note above.
+## 🏗️ Architecture
 
-### Dev notes:
+```
+┌─────────────────┐    ┌───────────────────┐    ┌─────────────────┐
+│   FastAPI       │    │  Elysia Agent     │    │   Weaviate      │
+│   Routes        │───▶│  Decision Trees   │───▶│   Vector Store  │
+│                 │    │  Tool Selection   │    │   (Local/Cloud) │
+└─────────────────┘    └───────────────────┘    └─────────────────┘
+```
 
-#### Installing pre-commit formatter
+### Modern Stack Benefits
+- **No Database Management**: Weaviate handles vector operations
+- **AI-Powered Retrieval**: Elysia agents make intelligent decisions  
+- **Simplified Deployment**: Single vector store, no complex setup
+- **Cloud-Native Scaling**: Automatic performance optimization
+- **Development Friendly**: Local Docker environment included
 
-Run the following commands to install pre-commit formatter, which uses [black](https://github.com/psf/black) code formatter:
+## 🌐 Deployment Options
+
+### Local Development
+Use the included Docker Compose setup with local Weaviate instance.
+
+### Production with Weaviate Cloud
+1. Create a Weaviate Cloud cluster at https://console.weaviate.cloud
+2. Update `.env` with your cluster URL and API key:
+   ```env
+   WCD_URL=https://your-cluster.weaviate.network
+   WCD_API_KEY=your-weaviate-cloud-api-key
+   ```
+3. Deploy with `docker compose up`
+
+### Production with Docker
+See [DOCKER.md](DOCKER.md) for comprehensive Docker deployment guide.
+
+## 📋 Migration from Legacy Versions
+
+If you're upgrading from the PostgreSQL/MongoDB version, see [README_MIGRATION.md](README_MIGRATION.md) for:
+- Complete migration guide
+- Breaking changes documentation  
+- Architecture comparison
+- Migration benefits
+
+## 🖥️ Web Interface (Optional)
+
+For a complete user experience, you can use the **Elysia Frontend** - a modern web interface with chat, data visualization, and 3D graphics:
+
+### Features of Elysia Frontend:
+- **💬 Interactive Chat Interface** - Web-based document querying
+- **📊 Data Visualization** - Charts and analytics for your documents  
+- **🌐 3D Graphics** - Interactive visualizations with Three.js
+- **⚙️ Configuration Management** - Easy setup and model configuration
+- **🔍 Data Explorer** - Advanced browsing and search capabilities
+
+### Setup Elysia Frontend:
+```bash
+# Clone the frontend (separate repository)
+git clone https://github.com/weaviate/elysia-frontend
+cd elysia-frontend
+
+# Install and start
+npm install
+npm run dev
+
+# Access at http://localhost:3000
+```
+
+The frontend integrates with your RAG API to provide a complete document intelligence platform with both programmatic and visual interfaces.
+
+## 🧪 API Testing
 
 ```bash
-pip install pre-commit
-pre-commit install
+# Test the API
+curl http://localhost:8000/health
+
+# Upload a document
+curl -X POST "http://localhost:8000/upload" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@document.pdf"
+
+# Query documents (traditional)
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is this document about?"}'
+
+# Query documents (agentic)
+curl -X POST "http://localhost:8000/query/agentic" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Analyze the key insights from these documents"}'
 ```
+
+## 🤝 Contributing
+
+This project uses modern Python practices:
+- **FastAPI** for async web framework
+- **Weaviate** for vector database operations
+- **Elysia** for agentic AI capabilities
+- **Docker** for containerized development
+- **Pydantic** for data validation
+
+## 📄 License
+
+[Add your license information here]
+
+---
+
+**🚀 Ready to build intelligent document retrieval with AI agents?** Get started with the Quick Start guide above!
