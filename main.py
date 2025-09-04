@@ -7,20 +7,21 @@ from contextlib import asynccontextmanager
 
 from starlette.responses import JSONResponse
 
-from app.config import VectorDBType, debug_mode, RAG_HOST, RAG_PORT, CHUNK_SIZE, CHUNK_OVERLAP, PDF_EXTRACT_IMAGES, VECTOR_DB_TYPE, \
+from app.config import debug_mode, RAG_HOST, RAG_PORT, CHUNK_SIZE, CHUNK_OVERLAP, PDF_EXTRACT_IMAGES, \
     LogMiddleware, logger
 from app.middleware import security_middleware
-from app.routes import document_routes, pgvector_routes
-from app.services.database import PSQLDatabase, ensure_custom_id_index_on_embedding
+from app.routes import document_routes
+from app.services.elysia_service import elysia_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic goes here
-    if VECTOR_DB_TYPE == VectorDBType.PGVECTOR:
-        await PSQLDatabase.get_pool()  # Initialize the pool
-        await ensure_custom_id_index_on_embedding()
-
+    # Startup logic - Weaviate connection is handled in elysia_service
+    logger.info("Starting RAG API with Weaviate + Elysia")
+    
     yield
+    
+    # Shutdown logic
+    elysia_service.close()
 
 app = FastAPI(lifespan=lifespan, debug=debug_mode)
 
@@ -43,8 +44,6 @@ app.state.PDF_EXTRACT_IMAGES = PDF_EXTRACT_IMAGES
 
 # Include routers
 app.include_router(document_routes.router)
-if debug_mode:
-    app.include_router(router=pgvector_routes.router)
 
 
 @app.exception_handler(RequestValidationError)

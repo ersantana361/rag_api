@@ -1,28 +1,42 @@
 services:
-  db:
-    image: ankane/pgvector:latest
-    environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
-    volumes:
-      - pgdata2:/var/lib/postgresql/data
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.32.5
     ports:
-      - "5433:5432"
-
-  fastapi:
-    build: .
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_API_BASED_MODULES: 'true'
+      ENABLE_MODULES: 'text2vec-openai,text2vec-huggingface,qna-openai'
+      CLUSTER_HOSTNAME: 'node1'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  rag-api:
+    build: .
     ports:
       - "8000:8000"
     volumes:
       - ./uploads:/app/uploads
-    depends_on:
-      - db
     env_file:
       - .env
+    environment:
+      - RAG_HOST=0.0.0.0
+      - RAG_PORT=8000
+      # Override for local development
+      - WCD_URL=http://weaviate:8080
+      - WCD_API_KEY=
+    depends_on:
+      weaviate:
+        condition: service_healthy
 
 volumes:
-  pgdata2:
+  weaviate_data:

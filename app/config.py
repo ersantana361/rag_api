@@ -3,20 +3,12 @@ import os
 import json
 import boto3
 import logging
-import urllib.parse
 from enum import Enum
 from datetime import datetime
 from dotenv import find_dotenv, load_dotenv
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.services.vector_store.factory import get_vector_store
-
 load_dotenv(find_dotenv())
-
-
-class VectorDBType(Enum):
-    PGVECTOR = "pgvector"
-    ATLAS_MONGO = "atlas-mongo"
 
 
 class EmbeddingsProvider(Enum):
@@ -47,30 +39,18 @@ RAG_UPLOAD_DIR = get_env_variable("RAG_UPLOAD_DIR", "./uploads/")
 if not os.path.exists(RAG_UPLOAD_DIR):
     os.makedirs(RAG_UPLOAD_DIR, exist_ok=True)
 
-VECTOR_DB_TYPE = VectorDBType(
-    get_env_variable("VECTOR_DB_TYPE", VectorDBType.PGVECTOR.value)
-)
-POSTGRES_DB = get_env_variable("POSTGRES_DB", "mydatabase")
-POSTGRES_USER = get_env_variable("POSTGRES_USER", "myuser")
-POSTGRES_PASSWORD = get_env_variable("POSTGRES_PASSWORD", "mypassword")
-DB_HOST = get_env_variable("DB_HOST", "db")
-DB_PORT = get_env_variable("DB_PORT", "5432")
-COLLECTION_NAME = get_env_variable("COLLECTION_NAME", "testcollection")
-ATLAS_MONGO_DB_URI = get_env_variable(
-    "ATLAS_MONGO_DB_URI", "mongodb://127.0.0.1:27018/LibreChat"
-)
-ATLAS_SEARCH_INDEX = get_env_variable("ATLAS_SEARCH_INDEX", "vector_index")
-MONGO_VECTOR_COLLECTION = get_env_variable(
-    "MONGO_VECTOR_COLLECTION", None
-)  # Deprecated, backwards compatability
+# Weaviate Configuration
+WCD_URL = get_env_variable("WCD_URL", required=True)
+WCD_API_KEY = get_env_variable("WCD_API_KEY", required=True)
+WEAVIATE_COLLECTION_NAME = get_env_variable("WEAVIATE_COLLECTION_NAME", "Documents")
 CHUNK_SIZE = int(get_env_variable("CHUNK_SIZE", "1500"))
 CHUNK_OVERLAP = int(get_env_variable("CHUNK_OVERLAP", "100"))
 
 env_value = get_env_variable("PDF_EXTRACT_IMAGES", "False").lower()
 PDF_EXTRACT_IMAGES = True if env_value == "true" else False
 
-CONNECTION_STRING = f"postgresql+psycopg2://{urllib.parse.quote_plus(POSTGRES_USER)}:{urllib.parse.quote_plus(POSTGRES_PASSWORD)}@{DB_HOST}:{DB_PORT}/{urllib.parse.quote_plus(POSTGRES_DB)}"
-DSN = f"postgresql://{urllib.parse.quote_plus(POSTGRES_USER)}:{urllib.parse.quote_plus(POSTGRES_PASSWORD)}@{DB_HOST}:{DB_PORT}/{urllib.parse.quote_plus(POSTGRES_DB)}"
+# Elysia Configuration
+OPENROUTER_API_KEY = get_env_variable("OPENROUTER_API_KEY", "")
 
 ## Logging
 
@@ -275,33 +255,7 @@ embeddings = init_embeddings(EMBEDDINGS_PROVIDER, EMBEDDINGS_MODEL)
 
 logger.info(f"Initialized embeddings of type: {type(embeddings)}")
 
-# Vector store
-if VECTOR_DB_TYPE == VectorDBType.PGVECTOR:
-    vector_store = get_vector_store(
-        connection_string=CONNECTION_STRING,
-        embeddings=embeddings,
-        collection_name=COLLECTION_NAME,
-        mode="async",
-    )
-elif VECTOR_DB_TYPE == VectorDBType.ATLAS_MONGO:
-    # Backward compatability check
-    if MONGO_VECTOR_COLLECTION:
-        logger.info(
-            f"DEPRECATED: Please remove env var MONGO_VECTOR_COLLECTION and instead use COLLECTION_NAME and ATLAS_SEARCH_INDEX. You can set both as same, but not neccessary. See README for more information."
-        )
-        ATLAS_SEARCH_INDEX = MONGO_VECTOR_COLLECTION
-        COLLECTION_NAME = MONGO_VECTOR_COLLECTION
-    vector_store = get_vector_store(
-        connection_string=ATLAS_MONGO_DB_URI,
-        embeddings=embeddings,
-        collection_name=COLLECTION_NAME,
-        mode="atlas-mongo",
-        search_index=ATLAS_SEARCH_INDEX,
-    )
-else:
-    raise ValueError(f"Unsupported vector store type: {VECTOR_DB_TYPE}")
-
-retriever = vector_store.as_retriever()
+# Weaviate and Elysia will be initialized in the service layer
 
 known_source_ext = [
     "go",
